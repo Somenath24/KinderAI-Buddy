@@ -1,0 +1,626 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Interview Pro Dashboard (Web)</title>
+    <style>
+        body { font-family: 'Segoe UI', Arial, sans-serif; background: #f7f9fa; margin: 0; }
+        .container {
+        max-width: 1200px; 
+        margin: 24px auto; 
+        padding: 2px; 
+        background: #fff; 
+        border-radius: 16px; 
+    }
+        h1 { font-size: 32px; color: #222; margin-bottom: 24px; }
+        h2 { font-size: 24px; color: #444; margin-bottom: 16px;
+}
+        .face-talk { display: flex; gap: 32px; margin-bottom: 32px; }
+        .video-box { 
+    position: relative;
+    width: 480px;
+    height: 360px;
+}
+        .video-box.bot-video {
+    width: 480px;
+    height: 360px;
+    background: #eee;
+    color: #888;
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+    overflow: hidden;
+}
+        .face-count { 
+    position: absolute; 
+    right: 10px; 
+    top: 10px; 
+    z-index: 3; 
+    color: #00FF00; 
+    background: rgba(0,0,0,0.5); 
+    padding: 1px 6px; 
+    border-radius: 4px; 
+    font-size: 13px; 
+}
+        .chat-panel { margin-top: 24px; }
+        .chat-history { height: 220px; overflow-y: auto; background: #fafbfc; border-radius: 10px; padding: 16px; margin-bottom: 12px; }
+        .chat-msg.user { text-align: right; color: #222; margin-bottom: 6px; }
+        .chat-msg.bot { text-align: left; color: #444; margin-bottom: 6px; }
+        .input-row { display: flex; gap: 8px; }
+        .input-row input { flex: 8; font-size: 18px; padding: 10px; border-radius: 8px; border: 1px solid #ccc; }
+        .input-row button, .input-row .mic-btn { flex: 1; font-size: 22px; padding: 0 0; border-radius: 8px; background: #e8b62c; color: #222; border: none; cursor: pointer; }
+        .bot-video-anim {
+    animation: pulse 1.5s infinite;
+    background: linear-gradient(90deg, #eee 40%, #e8b62c 60%, #eee 100%);
+    background-size: 200% 100%;
+}
+@keyframes pulse {
+    0% { background-position: 200% 0; }
+    100% { background-position: -200% 0; }
+}
+.tab-bar { display: flex; border-bottom: 2px solid #eee; }
+.tab-btn {
+    padding: 16px 32px;
+    cursor: pointer;
+    background: none;
+    border: none;
+    font-size: 18px;
+    border-bottom: 3px solid transparent;
+}
+.tab-btn.active { border-bottom: 3px solid #e8b62c; font-weight: bold; }
+.tab-content { display: none; }
+.tab-content.active { display: block; }
+@keyframes mic-vibrate {
+    0% { transform: translateX(0); }
+    20% { transform: translateX(-3px); }
+    40% { transform: translateX(3px); }
+    60% { transform: translateX(-2px); }
+    80% { transform: translateX(2px); }
+    100% { transform: translateX(0); }
+}
+.mic-vibrating {
+    animation: mic-vibrate 0.3s infinite;
+}
+@keyframes wave-move {
+    0%   { opacity: 1; transform: scaleY(1);}
+    50%  { opacity: 0.3; transform: scaleY(1.5);}
+    100% { opacity: 1; transform: scaleY(1);}
+}
+#mic-waves path {
+    animation: wave-move 1s infinite alternate;
+}
+#mic-waves path:last-child {
+    animation-delay: 0.5s;
+}
+.bot-video .bot-face-img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    border-radius: 12px;
+    display: block;
+}
+    </style>
+</head>
+<body>
+<div class="tab-bar">
+    <button class="tab-btn active" onclick="showTab('dashboard')">Dashboard</button>
+    <button class="tab-btn" onclick="showTab('settings')">Settings</button>
+</div>
+<div id="dashboard" class="tab-content active">
+    <div class="container">
+        <h1 style="text-align:center;">Interview Pro Dashboard</h1>
+        <div class="face-talk">
+            <div class="video-box" style="position:relative; width:480px; height:360px;">
+    <video id="user-video" width="480" height="360" autoplay muted style="display:block; position:absolute; left:0; top:0; z-index:1;"></video>
+    <canvas id="user-face-canvas" width="480" height="360" style="position:absolute; left:0; top:0; z-index:2; pointer-events:none;"></canvas>
+    <span id="user-face-label" style="position:absolute; left:10px; top:10px; z-index:3; color:#fff; background:rgba(0,0,0,0.3); padding:2px 6px; border-radius:4px;">User Video</span>
+    <span class="face-count" id="face-count-label" style="position:absolute; right:10px; top:10px; z-index:3; color:#00FF00; background:rgba(0,0,0,0.5); padding:1px 6px; border-radius:4px; font-size:13px;">Faces: 0</span>
+</div>
+            <div class="video-box bot-video bot-video-anim" id="bot-video-box">
+                <div id="bot-video-text" style="padding:24px; text-align:center; font-size:20px; width:100%; word-break:break-word;">
+    <img id="bot-face-img" src="/static/face_idle.jpg" alt="Bot Face" class="bot-face-img">
+</div>
+            </div>
+        </div>
+        <div class="chat-panel">
+            <div class="chat-history" id="chat-history">
+                {% for msg in chat_history %}
+                    {% if msg.role == "user" %}
+                        <div class="chat-msg user"><b>You:</b> {{ msg.content }}</div>
+                    {% elif msg.role == "assistant" %}
+                        <div class="chat-msg bot"><b>Bot:</b> {{ msg.content }}</div>
+                    {% endif %}
+                {% endfor %}
+            </div>
+            <div id="chat-status" style="color:#888; font-style:italic; min-height:24px; margin-bottom:8px;"></div>
+            <div class="input-row">
+                <input type="text" id="chat-input" placeholder="Type your message and press Enter...">
+                <button onclick="sendText()">Send</button>
+                <button class="mic-btn" id="mic-btn" onclick="toggleRecording()">🎤</button>
+            </div>
+        </div>
+    </div>
+</div>
+<div id="settings" class="tab-content">
+    <div class="container">
+        <h2>Settings</h2>
+        <form id="settings-form" method="POST" action="/settings">
+            
+            <label for="tts_voice">Voice:</label>
+            <select name="tts_voice" id="tts_voice">
+                <option value="en-US">English (US)</option>
+                <option value="en-GB">English (UK)</option>
+                <!-- Add more voices as needed -->
+            </select>
+            <br><br>
+            <label for="tts_engine">Text-to-Speech Engine:</label>
+<select name="tts_engine" id="tts_engine">
+    <option value="browser" selected>Browser (SpeechSynthesis)</option>
+    <option value="elevenlabs">ElevenLabs</option>
+</select>
+            <br><br>
+            <label>Hand Movement Detection:</label>
+<label><input type="radio" name="hand_detection" value="on" checked> On</label>
+<label><input type="radio" name="hand_detection" value="off"> Off</label>
+<br><br>
+<label>Presence Check:</label>
+<label><input type="radio" name="presence_check" value="on" checked> On</label>
+<label><input type="radio" name="presence_check" value="off"> Off</label>
+<br><br>
+            <button type="submit">Save Settings</button>
+        </form>
+    </div>
+</div>
+<canvas id="user-face-canvas" width="480" height="360" style="position:absolute; left:0; top:0; z-index:2; pointer-events:none;"></canvas>
+<script>
+function showTab(tab) {
+    document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+    document.querySelectorAll('.tab-content').forEach(tc => tc.classList.remove('active'));
+    if(tab === 'dashboard') {
+        document.querySelector('.tab-btn:nth-child(1)').classList.add('active');
+        document.getElementById('dashboard').classList.add('active');
+    } else {
+        document.querySelector('.tab-btn:nth-child(2)').classList.add('active');
+        document.getElementById('settings').classList.add('active');
+    }
+}
+</script>
+<script>
+let recording = false;
+let mediaRecorder;
+let audioChunks = [];
+
+function sendText() {
+    const input = document.getElementById('chat-input');
+    const text = input.value.trim();
+    if (!text) return;
+
+    // Show user's message immediately
+    addUserMessageToChat(text);
+
+    // Clear the input box
+    input.value = "";
+
+    setStatus("Bot is thinking...");
+
+    fetch("/", {
+        method: "POST",
+        headers: {"Content-Type": "application/x-www-form-urlencoded"},
+        body: "user_input=" + encodeURIComponent(text)
+    })
+    .then(r => r.json())
+    .then(data => {
+        updateChat(data.chat_history);
+        updateBotVideo(data.chat_history);
+        setStatus("");
+    })
+    .catch(() => setStatus("Error!"));
+}
+
+// Helper to add user message to chat immediately
+function addUserMessageToChat(text) {
+    const chatDiv = document.getElementById('chat-history');
+    chatDiv.innerHTML += `<div class="chat-msg user"><b>You:</b> ${text}</div>`;
+    chatDiv.scrollTop = chatDiv.scrollHeight;
+}
+
+function setStatus(msg) {
+    document.getElementById('chat-status').innerText = msg;
+    const botBox = document.getElementById('bot-video-box');
+    if (msg === "Bot is thinking...") {
+        botBox.classList.add("bot-video-anim");
+    } else {
+        botBox.classList.remove("bot-video-anim");
+    }
+}
+
+document.getElementById('chat-input').addEventListener('keydown', function(e) {
+    if (e.key === "Enter") sendText();
+});
+
+function updateChat(history) {
+    const chatDiv = document.getElementById('chat-history');
+    chatDiv.innerHTML = "";
+    history.forEach(msg => {
+        if (msg.role === "user")
+            chatDiv.innerHTML += `<div class="chat-msg user"><b>You:</b> ${msg.content}</div>`;
+        else if (msg.role === "assistant")
+            chatDiv.innerHTML += `<div class="chat-msg bot"><b>Bot:</b> ${msg.content}</div>`;
+    });
+    chatDiv.scrollTop = chatDiv.scrollHeight;
+    // Speak the latest bot reply if enabled
+    const lastMsg = history[history.length - 1];
+    if (lastMsg && lastMsg.role === "assistant" && ttsEngine !== "none") {
+        speakBotReply(lastMsg.content);
+    }
+}
+
+function updateBotVideo(history) {
+    let lastAssistant = null;
+    for (let i = history.length - 1; i >= 0; i--) {
+        if (history[i].role === "assistant") {
+            lastAssistant = history[i];
+            break;
+        }
+    }
+    const botVideoDiv = document.getElementById('bot-video-text');
+    if (lastAssistant && lastAssistant.image_url) {
+        // Show story image
+        botVideoDiv.innerHTML = `<img src="${lastAssistant.image_url}" alt="Story Image" class="bot-face-img">`;
+    } else {
+        // Only add the idle face if it doesn't exist
+        if (!document.getElementById('bot-face-img')) {
+            botVideoDiv.innerHTML = `<img id="bot-face-img" src="/static/face_idle.jpg" alt="Bot Face" class="bot-face-img">`;
+        }
+        // If the face is already there, do NOT reset its src here!
+        // Let speakBotReply handle switching between idle and speaking
+    }
+}
+
+// --- Webcam face detection (revert to live video) ---
+const video = document.getElementById('user-video');
+const overlayCanvas = document.getElementById('user-face-canvas');
+const overlayCtx = overlayCanvas.getContext('2d');
+const faceCountLabel = document.getElementById('face-count-label');
+const label = document.getElementById('user-face-label'); // <-- Add this line
+
+let lastRecognitionImg = null;
+let lastRecognitionTime = 0;
+
+// Face recognition every 10 seconds
+setInterval(() => {
+    if (video.videoWidth === 0 || video.videoHeight === 0) return;
+
+    // Prepare a frame for recognition
+    let tempCanvas = document.createElement('canvas');
+    tempCanvas.width = video.videoWidth;
+    tempCanvas.height = video.videoHeight;
+    let tempCtx = tempCanvas.getContext('2d');
+    tempCtx.drawImage(video, 0, 0, tempCanvas.width, tempCanvas.height);
+
+    tempCanvas.toBlob(blob => {
+        let formData = new FormData();
+        formData.append("image", blob, "frame.jpg");
+        fetch("/face_recognize", { method: "POST", body: formData })
+        .then(r => r.json())
+        .then(data => {
+            lastRecognitionImg = new Image();
+            lastRecognitionImg.src = 'data:image/jpeg;base64,' + data.img_b64;
+            lastRecognitionImg.faceCount = data.names ? data.names.length : 0; // <-- store count
+            lastRecognitionTime = Date.now();
+            lastRecognitionImg.onload = () => {
+                overlayCtx.clearRect(0, 0, overlayCanvas.width, overlayCanvas.height);
+                overlayCtx.drawImage(lastRecognitionImg, 0, 0, overlayCanvas.width, overlayCanvas.height);
+                overlayCtx.font = "16px Segoe UI, Arial";
+                overlayCtx.fillStyle = "#00FF00";
+                overlayCtx.textBaseline = "top";
+                overlayCtx.fillText("Faces: " + lastRecognitionImg.faceCount, 10, 10);
+            };
+        });
+    }, "image/jpeg");
+}, 10000); // every 10 seconds
+
+// Overlay the recognition result for 2 seconds after each recognition
+setInterval(() => {
+    if (lastRecognitionImg && (Date.now() - lastRecognitionTime < 2000)) {
+        overlayCtx.clearRect(0, 0, overlayCanvas.width, overlayCanvas.height);
+        overlayCtx.drawImage(lastRecognitionImg, 0, 0, overlayCanvas.width, overlayCanvas.height);
+        overlayCtx.font = "16px Segoe UI, Arial";
+        overlayCtx.fillStyle = "#00FF00";
+        overlayCtx.textBaseline = "top";
+        overlayCtx.fillText("Faces: " + (lastRecognitionImg.faceCount || 0), 10, 10);
+    } else {
+        overlayCtx.clearRect(0, 0, overlayCanvas.width, overlayCanvas.height);
+    }
+}, 200);
+
+navigator.mediaDevices.getUserMedia({ video: true, audio: false })
+.then(stream => {
+    video.srcObject = stream;
+    video.style.display = "block";
+    label.style.display = "none";
+    setInterval(() => {
+        // Capture frame and send to backend for face detection
+        let canvas = document.createElement('canvas');
+        canvas.width = video.videoWidth;
+        canvas.height = video.videoHeight;
+        let ctx = canvas.getContext('2d');
+        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+        canvas.toBlob(blob => {
+            let formData = new FormData();
+            formData.append("image", blob, "frame.jpg");
+            fetch("/face_detect", { method: "POST", body: formData })
+            .then(r => r.json())
+            .then(data => {
+                // Only update face count, keep live video
+                faceCountLabel.innerText = "Faces: " + data.face_count;
+            });
+        }, "image/jpeg");
+    }, 1200);
+
+    // --- START HAND DETECTION IF ENABLED ---
+    if (localStorage.getItem('hand_detection') !== 'off') {
+        startHandDetection(video);
+    }
+});
+
+// --- Voice recording ---
+function toggleRecording() {
+    if (!recording) {
+        startRecording();
+    } else {
+        stopRecording();
+    }
+}
+
+function startRecording() {
+    setStatus("Listening...");
+    navigator.mediaDevices.getUserMedia({ audio: true })
+    .then(stream => {
+        mediaRecorder = new MediaRecorder(stream);
+        mediaRecorder.start();
+        recording = true;
+        audioChunks = [];
+        mediaRecorder.ondataavailable = e => {
+            audioChunks.push(e.data);
+        };
+        mediaRecorder.onstop = e => {
+            setStatus("Bot is thinking...");
+            const audioBlob = new Blob(audioChunks, { type: 'audio/wav' });
+            let formData = new FormData();
+            formData.append("audio", audioBlob, "audio.wav");
+            fetch("/voice", { method: "POST", body: formData })
+    .then(r => r.json())
+    .then(data => {
+        updateChat(data.chat_history);
+        setStatus("");
+    });
+        };
+        document.getElementById('mic-btn').innerText = "⏹️";
+    });
+}
+
+function stopRecording() {
+    if (mediaRecorder && recording) {
+        mediaRecorder.stop();
+        recording = false;
+        document.getElementById('mic-btn').innerText = "🎤";
+    }
+}
+</script>
+<script>
+let ttsEngine = "{{ tts_engine }}"; // Jinja2 will fill this in
+
+function speakBotReply(text) {
+    const botFaceImg = document.getElementById('bot-face-img');
+
+    if (ttsEngine === "browser") {
+        if ('speechSynthesis' in window) {
+            const utter = new SpeechSynthesisUtterance(text);
+            utter.lang = "en-US";
+            utter.onstart = function() {
+                if (botFaceImg) botFaceImg.src = "/static/face_speaking.gif";
+            };
+            utter.onend = function() {
+                if (botFaceImg) botFaceImg.src = "/static/face_idle.jpg";
+            };
+            window.speechSynthesis.speak(utter);
+        }
+    } else if (ttsEngine === "elevenlabs") {
+        fetch("/elevenlabs_tts", {
+            method: "POST",
+            headers: {"Content-Type": "application/json"},
+            body: JSON.stringify({text: text})
+        })
+        .then(r => r.blob())
+        .then(blob => {
+            const url = URL.createObjectURL(blob);
+            const audio = new Audio(url);
+            audio.onplay = function() {
+                if (botFaceImg) botFaceImg.src = "/static/face_speaking.gif";
+            };
+            audio.onended = function() {
+                if (botFaceImg) botFaceImg.src = "/static/face_idle.jpg";
+            };
+            audio.play();
+        });
+    }
+}
+</script>
+<script>
+window.addEventListener('DOMContentLoaded', function() {
+    // Find the first assistant message in chat_history
+    const chatDiv = document.getElementById('chat-history');
+    const botMsgs = chatDiv.querySelectorAll('.chat-msg.bot');
+    if (botMsgs.length > 0) {
+        const introText = botMsgs[0].innerText.replace(/^Bot:\s*/, "");
+        // Try to speak the intro message (may be blocked by browser until user interacts)
+        if (ttsEngine === "browser") {
+            if ('speechSynthesis' in window) {
+                const utter = new SpeechSynthesisUtterance(introText);
+                utter.lang = "en-US";
+                window.speechSynthesis.speak(utter);
+            }
+        } else if (ttsEngine === "elevenlabs") {
+            fetch("/elevenlabs_tts", {
+                method: "POST",
+                headers: {"Content-Type": "application/json"},
+                body: JSON.stringify({text: introText})
+            })
+            .then(r => r.blob())
+            .then(blob => {
+                const url = URL.createObjectURL(blob);
+                const audio = new Audio(url);
+                audio.play();
+            });
+        }
+    }
+});
+</script>
+<script>
+let facePresent = false;
+
+function startFaceDetection() {
+    const video = document.createElement('video');
+    video.setAttribute('autoplay', true);
+    video.setAttribute('playsinline', true);
+    video.style.display = 'none';
+    document.body.appendChild(video);
+
+    navigator.mediaDevices.getUserMedia({ video: true })
+        .then(stream => {
+            video.srcObject = stream;
+            setInterval(() => {
+                captureAndSendFrame(video);
+            }, 2000); // every 2 seconds
+        })
+        .catch(err => {
+            console.log("Camera access denied or not available.", err);
+        });
+}
+
+function captureAndSendFrame(video) {
+    if (video.readyState !== 4) return;
+    const canvas = document.createElement('canvas');
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    const ctx = canvas.getContext('2d');
+    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+    canvas.toBlob(blob => {
+        const formData = new FormData();
+        formData.append('image', blob, 'frame.jpg');
+        fetch('/face_detect', {
+            method: 'POST',
+            body: formData
+        })
+        .then(r => r.json())
+        .then(data => {
+            // Only run presence check if enabled
+            if (localStorage.getItem('presence_check') !== 'off') {
+                if (data.face_count > 0 && !facePresent) {
+                    facePresent = true;
+                    //showBotNotice("I see you! 👀 Hi there!");
+                } else if (data.face_count === 0 && facePresent) {
+                    facePresent = false;
+                    showBotNotice("Where did you go? I can't see you now.");
+                }
+            }
+        });
+    }, 'image/jpeg');
+}
+
+function showBotNotice(msg) {
+    // Add a notice to the chat or update a status area
+    const chatDiv = document.getElementById('chat-history');
+    chatDiv.innerHTML += `<div class="chat-msg bot"><b>Bot:</b> ${msg}</div>`;
+    chatDiv.scrollTop = chatDiv.scrollHeight;
+    // Speak the notice as well
+    if (ttsEngine !== "none") {
+        speakBotReply(msg);
+    }
+}
+
+// Start face detection when the page loads
+window.addEventListener('DOMContentLoaded', startFaceDetection);
+</script>
+<script>
+function startHandDetection(video) {
+    setInterval(() => {
+        captureAndSendHandFrame(video);
+    }, 2000); // every 2 seconds
+}
+
+function captureAndSendHandFrame(video) {
+    if (video.readyState !== 4) return;
+    const canvas = document.createElement('canvas');
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    const ctx = canvas.getContext('2d');
+    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+    canvas.toBlob(blob => {
+        const formData = new FormData();
+        formData.append('image', blob, 'frame.jpg');
+        fetch('/hand_detect', {
+            method: 'POST',
+            body: formData
+        })
+        .then(r => r.json())
+        .then(data => {
+            if (data.hand_count > 0) {
+                showBotNotice("Hello !!!");
+            }
+        });
+    }, 'image/jpeg');
+}
+</script>
+<script>
+// Save and load hand detection & presence check settings
+document.addEventListener('DOMContentLoaded', function() {
+    // Hand detection
+    const handSaved = localStorage.getItem('hand_detection') || 'on';
+    document.querySelectorAll('input[name="hand_detection"]').forEach(r => {
+        r.checked = (r.value === handSaved);
+    });
+    document.querySelectorAll('input[name="hand_detection"]').forEach(r => {
+        r.addEventListener('change', function() {
+            localStorage.setItem('hand_detection', this.value);
+        });
+    });
+
+    // Presence check
+    const presenceSaved = localStorage.getItem('presence_check') || 'on';
+    document.querySelectorAll('input[name="presence_check"]').forEach(r => {
+        r.checked = (r.value === presenceSaved);
+    });
+    document.querySelectorAll('input[name="presence_check"]').forEach(r => {
+        r.addEventListener('change', function() {
+            localStorage.setItem('presence_check', this.value);
+        });
+    });
+});
+</script>
+<script>
+document.getElementById('settings-form').addEventListener('submit', function(e) {
+    e.preventDefault(); // Prevent normal form submit
+
+    const formData = new FormData(this);
+    const newTtsEngine = formData.get('tts_engine'); // Get the selected engine
+
+    fetch('/settings', {
+        method: 'POST',
+        body: formData
+    })
+    .then(r => {
+        if (r.ok) {
+            ttsEngine = newTtsEngine; // Update JS variable so new engine is used immediately
+            alert("Settings saved!");
+        } else {
+            alert("Failed to save settings.");
+        }
+    });
+});
+</script>
+</body>
+</html>
